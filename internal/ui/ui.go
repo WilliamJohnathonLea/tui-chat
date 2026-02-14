@@ -22,8 +22,19 @@ func RenderError(msg string) string {
 	return ErrorStyle.Render(msg)
 }
 
-func Separator() string {
-	return SeparatorStyle.Render("──────────────────────────────")
+func Separator(width ...int) string {
+	w := 30 // default
+	if len(width) > 0 {
+		w = width[0]
+	}
+	sep := ""
+	for len(sep) < w {
+		sep += "─"
+	}
+	if len(sep) > w {
+		sep = sep[:w]
+	}
+	return SeparatorStyle.Render(sep)
 }
 
 func Header(text string) string {

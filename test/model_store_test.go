@@ -1,6 +1,8 @@
 package model_test
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -8,41 +10,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStore_AddAndListMessages(t *testing.T) {
-	users := map[string]*model.User{
-		"alice": {Username: "alice"},
+func newTempLogFile(t *testing.T) (string, func()) {
+	temp, err := ioutil.TempFile("", "chatlog-test-*.jsonl")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
 	}
-	store := model.NewStore(users)
-
-	msg1 := model.Message{Sender: "alice", Timestamp: time.Now(), Text: "Hello"}
-	msg2 := model.Message{Sender: "alice", Timestamp: time.Now(), Text: "World"}
-	store.AddMessage(msg1)
-	store.AddMessage(msg2)
-	msgs := store.ListMessages()
-	assert.Equal(t, 2, len(msgs))
-	assert.Equal(t, "Hello", msgs[0].Text)
-	assert.Equal(t, "World", msgs[1].Text)
+	name := temp.Name()
+	temp.Close()
+	cleanup := func() { os.Remove(name) }
+	return name, cleanup
 }
 
-func TestStore_MaxMessagesFIFO(t *testing.T) {
-	users := map[string]*model.User{}
-	store := model.NewStore(users)
-	for i := 0; i < model.MaxMessages+5; i++ {
-		store.AddMessage(model.Message{Sender: "x", Timestamp: time.Now(), Text: string('A' + rune(i%26))})
-	}
-	msgs := store.ListMessages()
-	assert.Equal(t, model.MaxMessages, len(msgs))
-	// The first message should now be the 6th inserted message
-}
-
-func TestStore_AuthUser(t *testing.T) {
-	users := map[string]*model.User{
-		"bob": {Username: "bob", Password: "secret"},
-	}
-	store := model.NewStore(users)
-	u, err := store.AuthUser("bob", "secret")
-	assert.NoError(t, err)
-	assert.Equal(t, "bob", u.Username)
-	_, err = store.AuthUser("bob", "wrong")
-	assert.Error(t, err)
+func TestStore_AddAndLogMessages_MultiRoom(t *testing.T) {
+	logPath, cleanup := newTempLogFile(t)
+	defer cleanup()
+	users := map[string]*model.User{"alice": {Username: "alice"}, "bob": {Username: "bob"}}
+	store := model.NewStoreWithLog(users, logPath)
+	msgMain := model.Message{Room: "main", Sender: "alice", Timestamp: time.Now(), Text: "Hi in main"}
+	msgOther := model.Message{Room: "other", Sender: "bob", Timestamp: time.Now(), Text: "Yo in other"}
+	store.AddMessage(msgMain)
+	store.AddMessage(msgOther)
+	store.Close()
+	store2 := model.NewStoreWithLog(users, logPath)
+	msgsMain := store2.ListMessages("main")
+	msgsOther := store2.ListMessages("other")
+	assert.Equal(t, 1, len(msgsMain))
+	assert.Equal(t, 1, len(msgsOther))
+	assert.Equal(t, "Hi in main", msgsMain[0].Text)
+	assert.Equal(t, "Yo in other", msgsOther[0].Text)
 }

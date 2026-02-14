@@ -17,23 +17,31 @@ type ChatModel struct {
 	errMsg    string
 	logout    bool
 	scrollIdx int
+	room      string // room name ("main" default)
 	Width     int
 	Height    int
 }
 
-func NewChatModel(user *model.User, store *model.Store) *ChatModel {
+func NewChatModel(user *model.User, store *model.Store, width, height int) *ChatModel {
 	in := textinput.New()
 	in.Placeholder = "Type message..."
 	in.Focus()
+	room := "main"
 	return &ChatModel{
 		user:     user,
 		store:    store,
 		input:    in,
-		messages: store.ListMessages(),
+		messages: store.ListMessages(room),
+		room:     room,
+		Width:    width,
+		Height:   height,
 	}
 }
 
 func (m *ChatModel) Init() tea.Cmd { return nil }
+
+// RoomListRequestedMsg triggers app to switch to room list view
+type RoomListRequestedMsg struct{}
 
 func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -45,27 +53,32 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" || msg.String() == "esc" {
 			m.logout = true
 			return m, nil
-		} else if msg.String() == "enter" {
+		}
+		if msg.String() == "ctrl+r" {
+			return m, func() tea.Msg { return RoomListRequestedMsg{} }
+		}
+		if msg.String() == "enter" {
 			val := m.input.Value()
 			if val != "" {
 				m.store.AddMessage(model.Message{
+					Room:      m.room,
 					Sender:    m.user.Username,
 					Timestamp: time.Now(),
 					Text:      val,
 				})
 				m.input.SetValue("")
-				m.messages = m.store.ListMessages()
+				m.messages = m.store.ListMessages(m.room)
 				m.scrollIdx = 0 // auto-scroll to bottom when a message is sent
 			}
-		} else if msg.String() == "up" {
+		}
+		if msg.String() == "up" {
 			maxScroll := len(m.messages) - m.visibleMsgCount()
-			if maxScroll < 0 {
-				maxScroll = 0
-			}
+			maxScroll = max(maxScroll, 0)
 			if m.scrollIdx < maxScroll {
 				m.scrollIdx++
 			}
-		} else if msg.String() == "down" {
+		}
+		if msg.String() == "down" {
 			if m.scrollIdx > 0 {
 				m.scrollIdx--
 			}
@@ -90,20 +103,24 @@ func (m *ChatModel) visibleMsgCount() int {
 
 func (m *ChatModel) View() string {
 	// --- Layout parameters ---
-	const headerRows = 2 // header + separator
+	const headerRows = 4
 	const inputRows = 1
 	const footerRows = 2
 	const errRows = 1
 
 	minChatWidth := 60
 	maxChatWidth := m.Width - 8
-	if maxChatWidth < minChatWidth {
-		maxChatWidth = minChatWidth
-	}
+	maxChatWidth = max(maxChatWidth, minChatWidth)
+
 	leftPad := (m.Width - maxChatWidth) / 2
 	leftPad = max(leftPad, 0)
 
-	head := Header("Chat - User: "+RenderUsername(m.user)) + "\n" + Separator() + "\n"
+	headW := maxChatWidth
+	if m.Width > 0 {
+		headW = maxChatWidth
+	}
+	headerText := "Room: " + m.room + " | User: " + RenderUsername(m.user)
+	head := HeaderStyle.Width(headW).Render(headerText) + "\n" + Separator(headW) + "\n"
 
 	bottomRows := inputRows + footerRows
 	if m.errMsg != "" {
@@ -143,9 +160,20 @@ func (m *ChatModel) View() string {
 	if m.errMsg != "" {
 		err = leftSpace + RenderError(m.errMsg) + "\n"
 	}
-	footer := leftSpace + Footer("Enter: Send   Esc/Ctrl+C: Logout   Up/Down: (reserved)")
+	footer := leftSpace + Footer("Enter: Send   Ctrl+R: Rooms   Esc/Ctrl+C: Logout   Up/Down: (reserved)")
 
-	return head + leftSpace + msgAreaBoxed + "\n" + inputF + err + footer
+	return head + msgAreaBoxed + "\n" + inputF + err + footer
+}
+
+// SetRoom switches the current chat room and refreshes messages.
+func (m *ChatModel) SetRoom(roomName string) {
+	if roomName == "" {
+		roomName = "main"
+	}
+	m.room = roomName
+	m.messages = m.store.ListMessages(roomName)
+	m.scrollIdx = 0
+	m.errMsg = "Switched to room: " + roomName
 }
 
 // LoggedOut reports whether the user has requested to log out (esc/ctrl+c).

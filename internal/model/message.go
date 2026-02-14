@@ -6,9 +6,10 @@ import (
 )
 
 type Message struct {
-	Sender    string
-	Timestamp time.Time
-	Text      string
+	Room      string    `json:"room,omitempty"`
+	Sender    string    `json:"sender"`
+	Timestamp time.Time `json:"timestamp"`
+	Text      string    `json:"text"`
 }
 
 // FormatForDisplay returns a formatted chat message string.

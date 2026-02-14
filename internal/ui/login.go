@@ -23,7 +23,7 @@ type LoginSuccessMsg struct {
 	User *model.User
 }
 
-func NewLoginModel(users map[string]*model.User) *LoginModel {
+func NewLoginModel(users map[string]*model.User, width int, height int) *LoginModel {
 	u := textinput.New()
 	u.Placeholder = "Username"
 	u.Focus()
@@ -34,6 +34,8 @@ func NewLoginModel(users map[string]*model.User) *LoginModel {
 		Username: u,
 		Password: p,
 		users:    users,
+		Width:    width,
+		Height:   height,
 	}
 }
 
