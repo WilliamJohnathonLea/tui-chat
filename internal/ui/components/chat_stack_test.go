@@ -69,3 +69,75 @@ func Test_UpdateWindowSize(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func Test_AddMessage(t *testing.T) {
+	stack := ChatStack{height: 5, width: 5, messages: []string{}}
+	stack.AddMessage("hello")
+
+	rendered := stack.View()
+	expected := strings.Repeat("\n", 4) + "hello"
+
+	if !strings.EqualFold(rendered, expected) {
+		t.Fail()
+	}
+}
+
+func Test_ScrollUp(t *testing.T) {
+	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}}
+	updateMsg := tea.MouseMsg {Button: tea.MouseButtonWheelUp}
+
+	updated, _ := stack.Update(updateMsg)
+
+	rendered := updated.View()
+	expected := strings.Join(stack.messages[1:6], "\n")
+
+	if !strings.EqualFold(rendered, expected) {
+		fmt.Printf("Rendered: %s\n===\n", rendered)
+		fmt.Printf("Expected: %s\n\n", expected)
+		t.Fail()
+	}
+}
+
+func Test_ScrollDownAtMostRecent(t *testing.T) {
+	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}, msgOffset: 1}
+	updateMsg := tea.MouseMsg {Button: tea.MouseButtonWheelDown}
+
+	updated, _ := stack.Update(updateMsg)
+
+	rendered := updated.View()
+	expected := strings.Join(stack.messages[:5], "\n")
+
+	if !strings.EqualFold(rendered, expected) {
+		fmt.Printf("Rendered: %s\n===\n", rendered)
+		fmt.Printf("Expected: %s\n\n", expected)
+		t.Fail()
+	}
+}
+
+func Test_ScrollUpThenDown(t *testing.T) {
+	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}, msgOffset: 0}
+	updateMsgUp := tea.MouseMsg {Button: tea.MouseButtonWheelUp}
+	updateMsgDown := tea.MouseMsg {Button: tea.MouseButtonWheelDown}
+
+	updated, _ := stack.Update(updateMsgUp)
+
+	rendered := updated.View()
+	expected := strings.Join(stack.messages[1:6], "\n")
+
+	if !strings.EqualFold(rendered, expected) {
+		fmt.Printf("Rendered: %s\n===\n", rendered)
+		fmt.Printf("Expected: %s\n\n", expected)
+		t.Fail()
+	}
+
+	updated, _ = updated.Update(updateMsgDown)
+
+	rendered = updated.View()
+	expected = strings.Join(stack.messages[:5], "\n")
+
+	if !strings.EqualFold(rendered, expected) {
+		fmt.Printf("Rendered: %s\n===\n", rendered)
+		fmt.Printf("Expected: %s\n\n", expected)
+		t.Fail()
+	}
+}
