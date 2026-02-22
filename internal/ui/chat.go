@@ -9,13 +9,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+const chatWindowHeightOffset = 9 // space taken by header, input, and footer
+
 type ChatModel struct {
 	user       *model.User
 	store      *model.Store
 	input      textinput.Model
 	chatWindow components.ChatStack
 	messages   []model.Message
-	errMsg     string
 	logout     bool
 	room       string // room name ("main" default)
 	Width      int
@@ -32,7 +33,7 @@ func NewChatModel(user *model.User, store *model.Store, width, height int) *Chat
 
 	chatWindow := components.New()
 	chatWindow.SetWidth(width)
-	chatWindow.SetHeight(height - 5) // leave space for header, input, and footer
+	chatWindow.SetHeight(height - chatWindowHeightOffset) // leave space for header, input, and footer
 	for _, msg := range msgs {
 		colouredUsername := user.Color.Render(msg.Sender)
 		chatWindow.AddMessage(model.FormatForDisplay(msg, colouredUsername))
@@ -58,7 +59,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width = msg.Width
 		m.Height = msg.Height
 		m.chatWindow.SetWidth(m.Width)
-		m.chatWindow.SetHeight(m.Height - 5) // leave space for header, input, and footer
+		m.chatWindow.SetHeight(m.Height - chatWindowHeightOffset) // leave space for header, input, and footer
 		return m, nil
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || msg.String() == "esc" {
@@ -96,29 +97,17 @@ func (m *ChatModel) View() string {
 	if m.Width > 0 {
 		headW = maxChatWidth
 	}
-	headerText := "Room: " + m.room + " | User: " + RenderUsername(m.user)
-	head := HeaderStyle.Width(headW).Render(headerText) + "\n" + Separator(headW) + "\n"
+	headerText := "  Room: " + m.room + " | User: " + RenderUsername(m.user)
+	head := HeaderStyle.Width(headW).Render(headerText) + "\n"
 
 	msgArea := m.chatWindow.View()
+	msgArea = ChatBoxStyle.Width(m.Width - 4).Render(msgArea)
 
-	inputF := m.input.View() + "\n"
-	err := ""
-	if m.errMsg != "" {
-		err = RenderError(m.errMsg) + "\n"
-	}
-	footer := Footer("Enter: Send   Ctrl+R: Rooms   Esc/Ctrl+C: Logout   Up/Down/Mouse Wheel: Scroll")
+	inputF := ChatInputStyle.Width(m.Width-4).Render(m.input.View()) + "\n"
 
-	return head + msgArea + "\n" + inputF + err + footer
-}
+	footer := Footer("Enter: Send   Esc/Ctrl+C: Logout   Up/Down/Mouse Wheel: Scroll")
 
-// SetRoom switches the current chat room and refreshes messages.
-func (m *ChatModel) SetRoom(roomName string) {
-	if roomName == "" {
-		roomName = "main"
-	}
-	m.room = roomName
-	m.messages = m.store.ListMessages(roomName)
-	m.errMsg = "Switched to room: " + roomName
+	return head + msgArea + "\n" + inputF + footer
 }
 
 // LoggedOut reports whether the user has requested to log out (esc/ctrl+c).

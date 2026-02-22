@@ -12,6 +12,7 @@ var (
 	FooterStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E4E6EB")).Background(lipgloss.Color("#262626")).Italic(true).MarginTop(1).Padding(0, 1)
 	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFF")).Background(lipgloss.Color("#5B3CC4")).Padding(1, 8).MarginBottom(1).Align(lipgloss.Center)
 	ChatBoxStyle   = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#5B3CC4")).Padding(0, 1).Margin(0, 1) // Accent border
+	ChatInputStyle = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("#5B3CC4")).Padding(0, 1).Margin(0, 1) // Accent border
 )
 
 func RenderUsername(u *model.User) string {
