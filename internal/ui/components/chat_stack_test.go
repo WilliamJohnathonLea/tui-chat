@@ -58,11 +58,11 @@ func Test_MsgsGreaterThanHeight(t *testing.T) {
 
 func Test_UpdateWindowSize(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{}}
-	updateMsg := tea.WindowSizeMsg {Width: 5, Height: 10}
 
-	updated, _ := stack.Update(updateMsg)
+	stack.SetWidth(5)
+	stack.SetHeight(10)
 
-	rendered := updated.View()
+	rendered := stack.View()
 	expected := strings.Repeat("\n", 10)
 
 	if !strings.EqualFold(rendered, expected) {
@@ -73,9 +73,10 @@ func Test_UpdateWindowSize(t *testing.T) {
 func Test_AddMessage(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{}}
 	stack.AddMessage("hello")
+	stack.AddMessage("world")
 
 	rendered := stack.View()
-	expected := strings.Repeat("\n", 4) + "hello"
+	expected := strings.Repeat("\n", 3) + "hello\nworld"
 
 	if !strings.EqualFold(rendered, expected) {
 		t.Fail()
@@ -84,7 +85,7 @@ func Test_AddMessage(t *testing.T) {
 
 func Test_ScrollUp(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}}
-	updateMsg := tea.MouseMsg {Button: tea.MouseButtonWheelUp}
+	updateMsg := tea.KeyMsg {Type: tea.KeyDown}
 
 	updated, _ := stack.Update(updateMsg)
 
@@ -100,7 +101,7 @@ func Test_ScrollUp(t *testing.T) {
 
 func Test_ScrollDownAtMostRecent(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}, msgOffset: 1}
-	updateMsg := tea.MouseMsg {Button: tea.MouseButtonWheelDown}
+	updateMsg := tea.KeyMsg {Type: tea.KeyUp}
 
 	updated, _ := stack.Update(updateMsg)
 
@@ -116,8 +117,8 @@ func Test_ScrollDownAtMostRecent(t *testing.T) {
 
 func Test_ScrollUpThenDown(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}, msgOffset: 0}
-	updateMsgUp := tea.MouseMsg {Button: tea.MouseButtonWheelUp}
-	updateMsgDown := tea.MouseMsg {Button: tea.MouseButtonWheelDown}
+	updateMsgUp := tea.KeyMsg {Type: tea.KeyDown}
+	updateMsgDown := tea.KeyMsg {Type: tea.KeyUp}
 
 	updated, _ := stack.Update(updateMsgUp)
 

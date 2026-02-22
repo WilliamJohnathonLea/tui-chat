@@ -14,7 +14,6 @@ type appScreen int
 const (
 	loginScreen appScreen = iota
 	chatScreen
-	roomListScreen
 )
 
 type AppModel struct {
@@ -23,7 +22,6 @@ type AppModel struct {
 	store    *model.Store
 	login    tea.Model
 	chat     tea.Model
-	roomList tea.Model
 	Width    int
 	Height   int
 }
@@ -43,8 +41,6 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Width, m.Height = sizeMsg.Width, sizeMsg.Height
 		// Propagate to current submodel so their fields are always current
 		switch m.screen {
-		case roomListScreen:
-			m.roomList, _ = m.roomList.Update(msg)
 		case chatScreen:
 			m.chat, _ = m.chat.Update(msg)
 		case loginScreen:
@@ -52,28 +48,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Handle propagated messages from submodels
-	switch msgTyped := msg.(type) {
-	case ui.RoomListRequestedMsg:
-		m.roomList = ui.NewRoomListModel(m.store, m.Width, m.Height)
-		m.screen = roomListScreen
-		return m, m.roomList.Init()
-	case ui.RoomSelectedMsg:
-		if msgTyped.Room != "" {
-			if chat, ok := m.chat.(*ui.ChatModel); ok {
-				chat.SetRoom(msgTyped.Room)
-			}
-		}
-		m.screen = chatScreen
-		return m, nil
-	}
-
 	switch m.screen {
-	case roomListScreen:
-		model, cmd := m.roomList.Update(msg)
-		m.roomList = model
-		return m, cmd
-
 	case loginScreen:
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -114,8 +89,6 @@ func (m *AppModel) View() string {
 		return m.login.View()
 	case chatScreen:
 		return m.chat.View()
-	case roomListScreen:
-		return m.roomList.View()
 	}
 	return ""
 }
@@ -125,6 +98,13 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading users:", err)
 	}
+
+	f, err := tea.LogToFile("debug.log", "debug")
+	if err != nil {
+		log.Fatal("Error setting up log file:", err)
+	}
+	defer f.Close()
+
 	app := NewApp(users)
 	defer app.store.Close() // Cleanly closes the log file
 	if _, err := tea.NewProgram(app, tea.WithAltScreen()).Run(); err != nil {

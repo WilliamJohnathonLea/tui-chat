@@ -29,16 +29,16 @@ func (cs ChatStack) Init() tea.Cmd {
 
 func (cs ChatStack) Update(msg tea.Msg) (ChatStack, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		cs.width = msg.Width
-		cs.height = msg.Height
-	case tea.MouseMsg:
-		if msg.Button == tea.MouseButtonWheelUp {
-			cs.msgOffset++
-		}
-		if msg.Button == tea.MouseButtonWheelDown {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "down": // Scroll forwards through chat
+			if len(cs.messages) > cs.height {
+				cs.msgOffset++
+				cs.msgOffset = min(len(cs.messages)-cs.height, cs.msgOffset)
+			}
+		case "up": // Scroll backwards through chat
 			cs.msgOffset--
-			cs.msgOffset = min(0, cs.msgOffset)
+			cs.msgOffset = max(0, cs.msgOffset)
 		}
 	}
 	return cs, nil
@@ -60,7 +60,16 @@ func (cs ChatStack) View() string {
 }
 
 func (cs *ChatStack) AddMessage(msg string) {
-	newMsgs := []string{msg}
-	newMsgs = append(newMsgs, cs.messages...)
-	cs.messages = newMsgs
+	if len(cs.messages) >= cs.height {
+		cs.msgOffset++
+	}
+	cs.messages = append(cs.messages, msg)
+}
+
+func (cs *ChatStack) SetWidth(width int) {
+	cs.width = width
+}
+
+func (cs *ChatStack) SetHeight(height int) {
+	cs.height = height
 }
