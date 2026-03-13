@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/WilliamJohnathonLea/tui-chat/internal/model"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // LoginModel manages Twitch Device Code login screen state.
@@ -47,9 +46,7 @@ type (
 )
 
 // LoginSuccessMsg allows screen transition on Twitch login success.
-type LoginSuccessMsg struct {
-	User *model.User // We can wrap Twitch tokens here as needed
-}
+type LoginSuccessMsg struct {}
 
 // TwitchLoginModel manages Twitch Device Code Flow login screen state.
 type LoginModel struct {
@@ -78,7 +75,7 @@ type LoginModel struct {
 // LoginSuccessMsg allows screen transition on Twitch login success.
 // Already defined above, do not redeclare.
 
-func NewLoginModel(_ map[string]*model.User, width int, height int) *LoginModel {
+func NewLoginModel(width int, height int) *LoginModel {
 	// Start in Idle state with just dimensions and blank fields.
 	return &LoginModel{
 		state:   Idle,
@@ -154,7 +151,7 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshToken = msg.RefreshToken
 		m.tokenExpiresIn = msg.TokenExpiresIn
 		// Transition to main app
-		return m, func() tea.Msg { return LoginSuccessMsg{User: &model.User{ /* fill as needed */ }} }
+		return m, func() tea.Msg { return LoginSuccessMsg{} }
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
@@ -263,7 +260,7 @@ func errUnknown(err, desc string) error {
 	return errors.New("Unknown Twitch error: " + err + ": " + desc)
 }
 
-func (m *LoginModel) View() string {
+func (m *LoginModel) View() tea.View {
 	var content string
 	lines := 5
 
@@ -277,8 +274,8 @@ func (m *LoginModel) View() string {
 			buttonPad = 0
 		}
 		buttonLine := strings.Repeat(" ", buttonPad) + button
-		footer := Footer("Press Enter to log in with Twitch.  Ctrl+C: Quit")
-		content = title + Separator() + "\n" + buttonLine + "\n\n" + footer
+		footer := FooterStyle.Render("Press Enter to log in with Twitch.  Ctrl+C: Quit")
+		content = title + "\n" + buttonLine + "\n\n" + footer
 		lines = 5
 	case Requesting:
 		// Show loading
@@ -289,7 +286,7 @@ func (m *LoginModel) View() string {
 			loadingPad = 0
 		}
 		loadingLine := strings.Repeat(" ", loadingPad) + loading
-		content = title + Separator() + "\n" + loadingLine
+		content = title + "\n" + loadingLine
 		lines = 4
 	case WaitingForAuthorization:
 		// Show instructions with polling progress
@@ -314,7 +311,7 @@ func (m *LoginModel) View() string {
 		if instPad < 0 {
 			instPad = 0
 		}
-		content = title + Separator() + "\n" +
+		content = title + "\n" +
 			strings.Repeat(" ", codePad) + codeLine + "\n" +
 			strings.Repeat(" ", urlPad) + urlLine + "\n" +
 			strings.Repeat(" ", attemptPad) + attemptLine + "\n\n" +
@@ -327,12 +324,12 @@ func (m *LoginModel) View() string {
 		if errPad < 0 {
 			errPad = 0
 		}
-		footer := Footer("Press Enter to retry.  Ctrl+C: Quit")
-		content = title + Separator() + "\n" + strings.Repeat(" ", errPad) + errLine + "\n\n" + footer
+		footer := FooterStyle.Render("Press Enter to retry.  Ctrl+C: Quit")
+		content = title + "\n" + strings.Repeat(" ", errPad) + errLine + "\n\n" + footer
 		lines = 6
 	case Success:
 		title := AppTitle("Twitch Login Successful!", m.Width)
-		content = title + Separator() + "\n" + "Success!"
+		content = title + "\n" + "Success!"
 		lines = 4
 	}
 
@@ -340,5 +337,9 @@ func (m *LoginModel) View() string {
 	if m.Height > lines {
 		pad = (m.Height - lines) / 2
 	}
-	return strings.Repeat("\n", pad) + content
+
+	view := tea.NewView(strings.Repeat("\n", pad) + content)
+	view.AltScreen = true
+
+	return view
 }

@@ -1,53 +1,36 @@
 package ui
 
 import (
-	"time"
-
-	"github.com/WilliamJohnathonLea/tui-chat/internal/model"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/lipgloss/v2"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/ui/components"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
-const chatWindowHeightOffset = 9 // space taken by header, input, and footer
-
 type ChatModel struct {
-	user       *model.User
-	store      *model.Store
-	input      textinput.Model
-	chatWindow components.ChatStack
-	messages   []model.Message
-	logout     bool
-	room       string // room name ("main" default)
-	Width      int
-	Height     int
+	input        textinput.Model
+	participants list.Model
+	logout       bool
+	Width        int
+	Height       int
 }
 
-func NewChatModel(user *model.User, store *model.Store, width, height int) *ChatModel {
+func NewChatModel() *ChatModel {
 	in := textinput.New()
 	in.Placeholder = "Type message..."
 	in.Focus()
-	room := "main"
 
-	msgs := store.ListMessages(room)
-
-	chatWindow := components.New()
-	chatWindow.SetWidth(width)
-	chatWindow.SetHeight(height - chatWindowHeightOffset) // leave space for header, input, and footer
-	for _, msg := range msgs {
-		colouredUsername := user.Color.Render(msg.Sender)
-		chatWindow.AddMessage(model.FormatForDisplay(msg, colouredUsername))
+	items := []list.Item{
+		components.Participant{Name: "GrazhProtiv"},
 	}
+	participants := list.New(items, list.NewDefaultDelegate(), 20, 0)
+	participants.Title = "Participants"
+	participants.SetShowHelp(false)
 
 	return &ChatModel{
-		user:       user,
-		store:      store,
-		input:      in,
-		chatWindow: chatWindow,
-		messages:   msgs,
-		room:       room,
-		Width:      width,
-		Height:     height,
+		input:        in,
+		participants: participants,
 	}
 }
 
@@ -58,59 +41,42 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
-		m.chatWindow.SetWidth(m.Width)
-		m.chatWindow.SetHeight(m.Height - chatWindowHeightOffset) // leave space for header, input, and footer
 		return m, nil
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" || msg.String() == "esc" {
+		if msg.String() == "esc" {
 			m.logout = true
 			return m, nil
 		}
 		if msg.String() == "enter" {
 			val := m.input.Value()
 			if val != "" {
-				msg := model.Message{
-					Room:      m.room,
-					Sender:    m.user.Username,
-					Timestamp: time.Now(),
-					Text:      val,
-				}
-				m.store.AddMessage(msg)
-				colouredUsername := m.user.Color.Render(m.user.Username)
-				m.chatWindow.AddMessage(model.FormatForDisplay(msg, colouredUsername))
 				m.input.SetValue("")
-				m.messages = m.store.ListMessages(m.room)
 			}
 		}
 	}
-	m.chatWindow, _ = m.chatWindow.Update(msg)
 	m.input, _ = m.input.Update(msg)
+	m.participants, _ = m.participants.Update(msg)
 	return m, nil
 }
 
-func (m *ChatModel) View() string {
-	minChatWidth := 60
-	maxChatWidth := m.Width - 8
-	maxChatWidth = max(maxChatWidth, minChatWidth)
+func (m *ChatModel) View() tea.View {
+	participants := m.participants.View()
+	participantsP := lipgloss.PlaceHorizontal(m.Width, lipgloss.Right, participants) + "\n"
 
-	headW := maxChatWidth
-	if m.Width > 0 {
-		headW = maxChatWidth
-	}
-	headerText := "  Room: " + m.room + " | User: " + RenderUsername(m.user)
-	head := HeaderStyle.Width(headW).Render(headerText) + "\n"
+	widthOffset := ChatInputStyle.GetHorizontalMargins()
+	input := ChatInputStyle.Width(m.Width - widthOffset).Render(m.input.View())
 
-	msgArea := m.chatWindow.View()
-	msgArea = ChatBoxStyle.Width(m.Width - 4).Render(msgArea)
+	footer := FooterStyle.Render("Enter: Send   Esc: Logout   Up/Down/Mouse Wheel: Scroll")
 
-	inputF := ChatInputStyle.Width(m.Width-4).Render(m.input.View()) + "\n"
+	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, participantsP+input+footer)
 
-	footer := Footer("Enter: Send   Esc/Ctrl+C: Logout   Up/Down/Mouse Wheel: Scroll")
+	view := tea.NewView(inputAndFooter)
+	view.AltScreen = true
 
-	return head + msgArea + "\n" + inputF + footer
+	return view
 }
 
-// LoggedOut reports whether the user has requested to log out (esc/ctrl+c).
+// LoggedOut reports whether the user has requested to log out (esc).
 func (m *ChatModel) LoggedOut() bool {
 	return m.logout
 }

@@ -1,11 +1,8 @@
 package main
 
-// WARNING: Now closes chat log on shutdown via Store.Close()
-
 import (
-	"github.com/WilliamJohnathonLea/tui-chat/internal/model"
+	tea "charm.land/bubbletea/v2"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/ui"
-	tea "github.com/charmbracelet/bubbletea"
 	"log"
 )
 
@@ -17,19 +14,23 @@ const (
 )
 
 type AppModel struct {
-	screen   appScreen
-	user     *model.User
-	store    *model.Store
-	login    tea.Model
-	chat     tea.Model
-	Width    int
-	Height   int
+	screen appScreen
+	login  tea.Model
+	chat   tea.Model
+	Width  int
+	Height int
 }
 
-func NewApp(userStore map[string]*model.User) *AppModel {
-	store := model.NewStore(userStore)
-	login := ui.NewLoginModel(userStore, 0, 0) // Dimensions will be set once available
-	return &AppModel{screen: loginScreen, store: store, login: login, Width: 0, Height: 0}
+func NewApp() *AppModel {
+	login := ui.NewLoginModel(0, 0) // Dimensions will be set once available
+	chat := ui.NewChatModel()
+	return &AppModel{
+		screen: chatScreen,
+		login:  login,
+		chat:   chat,
+		Width:  0,
+		Height: 0,
+	}
 }
 
 func (m *AppModel) Init() tea.Cmd {
@@ -53,9 +54,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if success, ok := msg.(ui.LoginSuccessMsg); ok {
-			m.user = success.User
-			m.chat = ui.NewChatModel(m.user, m.store, m.Width, m.Height)
+		if _, ok := msg.(ui.LoginSuccessMsg); ok {
+			m.chat = ui.NewChatModel()
 			m.screen = chatScreen
 			return m, m.chat.Init()
 		}
@@ -71,8 +71,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		chatModel, cmd := m.chat.Update(msg)
 		// Handle logout by checking for quit flag
 		if chat, ok := chatModel.(*ui.ChatModel); ok && chat.LoggedOut() {
-			m.user = nil
-			m.login = ui.NewLoginModel(m.store.Users, m.Width, m.Height)
+			m.login = ui.NewLoginModel(m.Width, m.Height)
 			m.chat = nil
 			m.screen = loginScreen
 			return m, m.login.Init()
@@ -83,31 +82,25 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *AppModel) View() string {
+func (m *AppModel) View() tea.View {
 	switch m.screen {
 	case loginScreen:
 		return m.login.View()
 	case chatScreen:
 		return m.chat.View()
 	}
-	return ""
+	return tea.NewView("")
 }
 
 func main() {
-	users, err := model.LoadUsers("testdata/users.json")
-	if err != nil {
-		log.Fatal("Error loading users:", err)
-	}
-
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {
 		log.Fatal("Error setting up log file:", err)
 	}
 	defer f.Close()
 
-	app := NewApp(users)
-	defer app.store.Close() // Cleanly closes the log file
-	if _, err := tea.NewProgram(app, tea.WithAltScreen()).Run(); err != nil {
+	app := NewApp()
+	if _, err := tea.NewProgram(app).Run(); err != nil {
 		log.Fatal(err)
 	}
 }
