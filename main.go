@@ -25,7 +25,7 @@ func NewApp() *AppModel {
 	login := ui.NewLoginModel(0, 0) // Dimensions will be set once available
 	chat := ui.NewChatModel()
 	return &AppModel{
-		screen: chatScreen,
+		screen: loginScreen,
 		login:  login,
 		chat:   chat,
 		Width:  0,
@@ -41,12 +41,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.Width, m.Height = sizeMsg.Width, sizeMsg.Height
 		// Propagate to current submodel so their fields are always current
-		switch m.screen {
-		case chatScreen:
-			m.chat, _ = m.chat.Update(msg)
-		case loginScreen:
-			m.login, _ = m.login.Update(msg)
-		}
+		m.chat, _ = m.chat.Update(msg)
+		m.login, _ = m.login.Update(msg)
 	}
 
 	switch m.screen {
@@ -55,7 +51,6 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		if _, ok := msg.(ui.LoginSuccessMsg); ok {
-			m.chat = ui.NewChatModel()
 			m.screen = chatScreen
 			return m, m.chat.Init()
 		}
@@ -64,10 +59,6 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case chatScreen:
-		if m.chat == nil {
-			// Should never happen, but avoid panic
-			return m, nil
-		}
 		chatModel, cmd := m.chat.Update(msg)
 		// Handle logout by checking for quit flag
 		if chat, ok := chatModel.(*ui.ChatModel); ok && chat.LoggedOut() {
