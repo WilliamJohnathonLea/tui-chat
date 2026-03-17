@@ -3,12 +3,13 @@ package ui
 import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/ui/components"
-	tea "charm.land/bubbletea/v2"
 )
 
 type ChatModel struct {
+	chat         components.ChatStack
 	input        textinput.Model
 	participants list.Model
 	logout       bool
@@ -18,17 +19,18 @@ type ChatModel struct {
 
 func NewChatModel() *ChatModel {
 	in := textinput.New()
-	in.Placeholder = "Type message..."
 	in.Focus()
 
 	items := []list.Item{
 		components.Participant{Name: "GrazhProtiv"},
 	}
 	participants := list.New(items, list.NewDefaultDelegate(), 20, 0)
-	participants.Title = "Participants"
+	participants.SetShowTitle(false)
 	participants.SetShowHelp(false)
+	participants.SetShowStatusBar(false)
 
 	return &ChatModel{
+		chat:         components.New(),
 		input:        in,
 		participants: participants,
 	}
@@ -41,6 +43,14 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+		chatInputHeight := ChatInputStyle.GetVerticalFrameSize() +
+			FooterStyle.GetVerticalFrameSize() +
+			ChatBoxStyle.GetVerticalFrameSize() + 2
+
+		m.chat.SetWidth(m.Width - m.participants.Width())
+		m.chat.SetHeight(m.Height - chatInputHeight)
+		m.participants.SetHeight(m.Height - chatInputHeight)
+
 		return m, nil
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
@@ -60,15 +70,17 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ChatModel) View() tea.View {
-	participants := m.participants.View()
-	participantsP := lipgloss.PlaceHorizontal(m.Width, lipgloss.Right, participants) + "\n"
+	chatView := ChatBoxStyle.Width(m.chat.Width()).Render(m.chat.View())
+	participantsView := m.participants.View()
+	chatAndParticipantsView := lipgloss.JoinHorizontal(lipgloss.Top, chatView, participantsView)
+	roomView := lipgloss.PlaceHorizontal(m.Width, lipgloss.Left, chatAndParticipantsView) + "\n"
 
 	widthOffset := ChatInputStyle.GetHorizontalMargins()
 	input := ChatInputStyle.Width(m.Width - widthOffset).Render(m.input.View())
 
 	footer := FooterStyle.Render("Enter: Send   Esc: Logout   Up/Down/Mouse Wheel: Scroll")
 
-	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, participantsP+input+footer)
+	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, roomView+input+footer)
 
 	view := tea.NewView(inputAndFooter)
 	view.AltScreen = true

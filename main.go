@@ -25,7 +25,7 @@ func NewApp() *AppModel {
 	login := ui.NewLoginModel(0, 0) // Dimensions will be set once available
 	chat := ui.NewChatModel()
 	return &AppModel{
-		screen: loginScreen,
+		screen: chatScreen,
 		login:  login,
 		chat:   chat,
 		Width:  0,

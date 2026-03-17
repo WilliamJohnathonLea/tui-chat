@@ -70,6 +70,14 @@ func (cs *ChatStack) SetWidth(width int) {
 	cs.width = width
 }
 
+func (cs *ChatStack) Width() int {
+	return cs.width
+}
+
 func (cs *ChatStack) SetHeight(height int) {
 	cs.height = height
+}
+
+func (cs *ChatStack) Height() int {
+	return cs.height
 }
