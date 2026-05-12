@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/ui"
 	"log"
+	"net/http"
 )
 
 type appScreen int
@@ -22,10 +23,10 @@ type AppModel struct {
 }
 
 func NewApp() *AppModel {
-	login := ui.NewLoginModel(0, 0) // Dimensions will be set once available
-	chat := ui.NewChatModel()
+	login := ui.NewLoginModel(0, 0)
+	chat := ui.NewChatModel(&http.Client{}, "") // Initially no accessToken
 	return &AppModel{
-		screen: chatScreen,
+		screen: loginScreen,
 		login:  login,
 		chat:   chat,
 		Width:  0,
@@ -50,7 +51,9 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key, ok := msg.(tea.KeyMsg); ok && key.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if _, ok := msg.(ui.LoginSuccessMsg); ok {
+		if successMsg, ok := msg.(ui.LoginSuccessMsg); ok {
+			// Replace chat model, injecting the new access token
+			m.chat = ui.NewChatModel(&http.Client{}, successMsg.AccessToken)
 			m.screen = chatScreen
 			return m, m.chat.Init()
 		}

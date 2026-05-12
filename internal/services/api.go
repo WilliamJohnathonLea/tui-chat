@@ -6,7 +6,22 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
+
+// UserInfo represents a user from the Twitch API.
+type UserInfo struct {
+	ID              string `json:"id"`
+	Login           string `json:"login"`
+	DisplayName     string `json:"display_name"`
+	Type            string `json:"type"`
+	BroadcasterType string `json:"broadcaster_type"`
+	Description     string `json:"description"`
+	ProfileImageURL string `json:"profile_image_url"`
+	OfflineImageURL string `json:"offline_image_url"`
+	Email           string `json:"email,omitempty"`
+	CreatedAt       string `json:"created_at"`
+}
 
 const clientID = "8pbsu0inj1huddl1inp1800p4vtmwy"
 
@@ -22,7 +37,7 @@ func SendMessage(client *http.Client, accessToken, senderId, message string) err
 	payload := map[string]any{
 		"broadcaster_id": senderId, // broadcaster and sender are the same user
 		"sender_id":      senderId,
-		"text":           message,
+		"message":        message,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -84,4 +99,48 @@ func SendMessage(client *http.Client, accessToken, senderId, message string) err
 	}
 
 	return nil
+}
+
+// GetUsers retrieves info about one or more users from the Twitch API.
+func GetUsers(httpClient *http.Client, accessToken string, userIDs ...string) ([]UserInfo, error) {
+	base := "https://api.twitch.tv/helix/users"
+	q := url.Values{}
+	for _, id := range userIDs {
+		q.Add("id", id)
+	}
+
+	req, err := http.NewRequest("GET", base+"?"+q.Encode(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	// Auth headers
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Client-Id", clientID)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch resp.StatusCode {
+	case 200:
+		var out struct {
+			Data []UserInfo `json:"data"`
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			return nil, fmt.Errorf("failed to decode user response: %w", err)
+		}
+		return out.Data, nil
+	case 400:
+		return nil, fmt.Errorf("twitch API: bad request; possibly invalid ID parameter(s)")
+	case 401:
+		return nil, fmt.Errorf("twitch API: unauthorized; check accessToken")
+	}
+	return nil, fmt.Errorf("twitch API: unexpected status %d: %s", resp.StatusCode, string(body))
 }

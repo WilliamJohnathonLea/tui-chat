@@ -45,8 +45,10 @@ type (
 	TickMsg struct{}
 )
 
-// LoginSuccessMsg allows screen transition on Twitch login success.
-type LoginSuccessMsg struct {}
+// LoginSuccessMsg is sent when Twitch login succeeds and carries the access token.
+type LoginSuccessMsg struct {
+	AccessToken string
+}
 
 // TwitchLoginModel manages Twitch Device Code Flow login screen state.
 type LoginModel struct {
@@ -150,8 +152,8 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.accessToken = msg.AccessToken
 		m.refreshToken = msg.RefreshToken
 		m.tokenExpiresIn = msg.TokenExpiresIn
-		// Transition to main app
-		return m, func() tea.Msg { return LoginSuccessMsg{} }
+		// Transition to main app with access token
+		return m, func() tea.Msg { return LoginSuccessMsg{AccessToken: m.accessToken} }
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
@@ -163,7 +165,7 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func requestDeviceCodeCmd(clientID string) tea.Cmd {
 	return func() tea.Msg {
 		endpoint := "https://id.twitch.tv/oauth2/device"
-		data := "client_id=" + clientID + "&scope=user:read:email"
+		data := "client_id=" + clientID + "&scopes=user:read:email+user:write:chat"
 		resp, err := http.Post(endpoint, "application/x-www-form-urlencoded", strings.NewReader(data))
 		if err != nil {
 			return ReceiveDeviceCodeMsg{Err: err}
@@ -203,8 +205,9 @@ func pollTokenCmd(deviceCode string, attempt int, expiresIn int) tea.Cmd {
 		clientID := "8pbsu0inj1huddl1inp1800p4vtmwy" // replace with your Twitch client ID
 		clientSecret := ""                           // Only if your app needs it
 		endpoint := "https://id.twitch.tv/oauth2/token"
+		scopes := "user:write:chat"
 		grantType := "urn:ietf:params:oauth:grant-type:device_code"
-		data := "client_id=" + clientID + "&device_code=" + deviceCode + "&grant_type=" + grantType
+		data := "client_id=" + clientID + "&device_code=" + deviceCode + "&scopes=" + scopes + "&grant_type=" + grantType
 		if clientSecret != "" {
 			data += "&client_secret=" + clientSecret
 		}

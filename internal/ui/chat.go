@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"log"
+	"net/http"
+
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/WilliamJohnathonLea/tui-chat/internal/services"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/ui/components"
 )
 
@@ -15,9 +19,20 @@ type ChatModel struct {
 	logout       bool
 	Width        int
 	Height       int
+	httpClient   *http.Client
+	accessToken  string
+	loggedInUser string // The authenticated user's ID
 }
 
-func NewChatModel() *ChatModel {
+type ChatMsgSent struct {
+	err error
+}
+
+type UserIdReceived struct {
+	userID string
+}
+
+func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 	in := textinput.New()
 	in.Focus()
 
@@ -33,12 +48,30 @@ func NewChatModel() *ChatModel {
 		chat:         components.New(),
 		input:        in,
 		participants: participants,
+		httpClient:   httpClient,
+		accessToken:  accessToken,
 	}
 }
 
-func (m *ChatModel) Init() tea.Cmd { return nil }
+func (m *ChatModel) Init() tea.Cmd {
+	// On first initialize, look up the authenticated user's info
+	return func() tea.Msg {
+		users, err := services.GetUsers(m.httpClient, m.accessToken)
+		if err != nil || len(users) == 0 {
+			return UserIdReceived{userID: ""}
+		}
+		return UserIdReceived{userID: users[0].ID}
+	}
+}
 
 func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle UserIdReceived for sender ID
+	if uid, ok := msg.(UserIdReceived); ok {
+		m.loggedInUser = uid.userID
+	}
+
+	m.input, _ = m.input.Update(msg)
+	m.participants, _ = m.participants.Update(msg)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
@@ -61,11 +94,14 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			val := m.input.Value()
 			if val != "" {
 				m.input.SetValue("")
+				return m, func() tea.Msg {
+					err := services.SendMessage(m.httpClient, m.accessToken, m.loggedInUser, val)
+					log.Println(err)
+					return ChatMsgSent{err: err}
+				}
 			}
 		}
 	}
-	m.input, _ = m.input.Update(msg)
-	m.participants, _ = m.participants.Update(msg)
 	return m, nil
 }
 
