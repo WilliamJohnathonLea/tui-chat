@@ -13,16 +13,17 @@ import (
 )
 
 type ChatModel struct {
-	chat         components.ChatStack
-	input        textinput.Model
-	participants list.Model
-	logout       bool
-	Width        int
-	Height       int
-	inputFocused bool
-	httpClient   *http.Client
-	accessToken  string
-	loggedInUser string // The authenticated user's ID
+	chat                components.ChatStack
+	input               textinput.Model
+	participants        list.Model
+	participantsVisible bool
+	logout              bool
+	Width               int
+	Height              int
+	inputFocused        bool
+	httpClient          *http.Client
+	accessToken         string
+	loggedInUser        string // The authenticated user's ID
 }
 
 type ChatMsgSent struct {
@@ -44,12 +45,13 @@ func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 	participants.SetShowHelp(false)
 	participants.SetShowStatusBar(false)
 	return &ChatModel{
-		chat:         components.New(),
-		input:        in,
-		participants: participants,
-		inputFocused: true,
-		httpClient:   httpClient,
-		accessToken:  accessToken,
+		chat:                components.New(),
+		input:               in,
+		participants:        participants,
+		participantsVisible: true,
+		inputFocused:        true,
+		httpClient:          httpClient,
+		accessToken:         accessToken,
 	}
 }
 
@@ -78,7 +80,13 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			FooterStyle.GetVerticalFrameSize() +
 			ChatBoxStyle.GetVerticalFrameSize() + 2
 
-		m.chat.SetWidth(m.Width - m.participants.Width())
+		if m.participantsVisible {
+			m.chat.SetWidth(m.Width - m.participants.Width())
+		} else {
+			offset := ChatBoxStyle.GetHorizontalMargins()
+			m.chat.SetWidth(m.Width - offset)
+		}
+
 		m.chat.SetHeight(m.Height - chatInputHeight)
 		m.participants.SetHeight(m.Height - chatInputHeight)
 
@@ -96,6 +104,19 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.input.Blur()
 			}
+			return m, nil
+		}
+		// Only toggle participants if input is unfocused
+		if !m.inputFocused && (msg.String() == "c" || msg.String() == "C") {
+			m.participantsVisible = !m.participantsVisible
+
+			if m.participantsVisible {
+				m.chat.SetWidth(m.Width - m.participants.Width())
+			} else {
+				offset := ChatBoxStyle.GetHorizontalMargins()
+				m.chat.SetWidth(m.Width - offset)
+			}
+
 			return m, nil
 		}
 		if m.inputFocused {
@@ -122,7 +143,10 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ChatModel) View() tea.View {
 	chatView := ChatBoxStyle.Width(m.chat.Width()).Render(m.chat.View())
-	participantsView := m.participants.View()
+	participantsView := ""
+	if m.participantsVisible {
+		participantsView = m.participants.View()
+	} // else leave blank
 	chatAndParticipantsView := lipgloss.JoinHorizontal(lipgloss.Top, chatView, participantsView)
 	roomView := lipgloss.PlaceHorizontal(m.Width, lipgloss.Left, chatAndParticipantsView) + "\n"
 
@@ -132,7 +156,13 @@ func (m *ChatModel) View() tea.View {
 		inputField = ChatInputDisabledStyle.Width(m.Width - widthOffset).Render("Tab to chat")
 	}
 
-	footer := FooterStyle.Render("Tab: Focus Input   Enter: Send   Esc: Logout   Up/Down/Mouse Wheel: Scroll")
+	footer := ""
+	if m.inputFocused {
+		footer = FooterStyle.Render("tab: toggle input   enter: send   esc: logout")
+	} else {
+		footer = FooterStyle.Render("tab: toggle input   c: toggle chatters   esc: logout")
+	}
+	
 
 	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, roomView+inputField+footer)
 
