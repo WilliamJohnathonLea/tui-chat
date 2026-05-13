@@ -19,6 +19,7 @@ type ChatModel struct {
 	logout       bool
 	Width        int
 	Height       int
+	inputFocused bool
 	httpClient   *http.Client
 	accessToken  string
 	loggedInUser string // The authenticated user's ID
@@ -35,7 +36,6 @@ type UserIdReceived struct {
 func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 	in := textinput.New()
 	in.Focus()
-
 	items := []list.Item{
 		components.Participant{Name: "GrazhProtiv"},
 	}
@@ -43,11 +43,11 @@ func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 	participants.SetShowTitle(false)
 	participants.SetShowHelp(false)
 	participants.SetShowStatusBar(false)
-
 	return &ChatModel{
 		chat:         components.New(),
 		input:        in,
 		participants: participants,
+		inputFocused: true,
 		httpClient:   httpClient,
 		accessToken:  accessToken,
 	}
@@ -70,8 +70,6 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loggedInUser = uid.userID
 	}
 
-	m.input, _ = m.input.Update(msg)
-	m.participants, _ = m.participants.Update(msg)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
@@ -85,23 +83,40 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.participants.SetHeight(m.Height - chatInputHeight)
 
 		return m, nil
+
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
 			m.logout = true
 			return m, nil
 		}
-		if msg.String() == "enter" {
-			val := m.input.Value()
-			if val != "" {
-				m.input.SetValue("")
-				return m, func() tea.Msg {
-					err := services.SendMessage(m.httpClient, m.accessToken, m.loggedInUser, val)
-					log.Println(err)
-					return ChatMsgSent{err: err}
+		if msg.String() == "tab" {
+			m.inputFocused = !m.inputFocused
+			if m.inputFocused {
+				m.input.Focus()
+			} else {
+				m.input.Blur()
+			}
+			return m, nil
+		}
+		if m.inputFocused {
+			if msg.String() == "enter" {
+				val := m.input.Value()
+				if val != "" {
+					m.input.SetValue("")
+					return m, func() tea.Msg {
+						err := services.SendMessage(m.httpClient, m.accessToken, m.loggedInUser, val)
+						if err != nil {
+							log.Println(err)
+						}
+						return ChatMsgSent{err: err}
+					}
 				}
 			}
 		}
 	}
+
+	m.input, _ = m.input.Update(msg)
+	m.participants, _ = m.participants.Update(msg)
 	return m, nil
 }
 
@@ -112,11 +127,14 @@ func (m *ChatModel) View() tea.View {
 	roomView := lipgloss.PlaceHorizontal(m.Width, lipgloss.Left, chatAndParticipantsView) + "\n"
 
 	widthOffset := ChatInputStyle.GetHorizontalMargins()
-	input := ChatInputStyle.Width(m.Width - widthOffset).Render(m.input.View())
+	inputField := ChatInputStyle.Width(m.Width - widthOffset).Render(m.input.View())
+	if !m.inputFocused {
+		inputField = ChatInputDisabledStyle.Width(m.Width - widthOffset).Render("Tab to chat")
+	}
 
-	footer := FooterStyle.Render("Enter: Send   Esc: Logout   Up/Down/Mouse Wheel: Scroll")
+	footer := FooterStyle.Render("Tab: Focus Input   Enter: Send   Esc: Logout   Up/Down/Mouse Wheel: Scroll")
 
-	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, roomView+input+footer)
+	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, roomView+inputField+footer)
 
 	view := tea.NewView(inputAndFooter)
 	view.AltScreen = true

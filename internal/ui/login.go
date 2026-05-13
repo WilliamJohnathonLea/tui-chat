@@ -98,11 +98,10 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.state == Idle && msg.String() == "enter" {
 			m.state = Requesting
-			clientID := "8pbsu0inj1huddl1inp1800p4vtmwy" // replace with your actual client ID
+			clientID := "8pbsu0inj1huddl1inp1800p4vtmwy"
 			return m, requestDeviceCodeCmd(clientID)
 		}
 		if m.state == Error && msg.String() == "enter" {
-			// Allow retry: reset to idle for user
 			m.state = Idle
 			m.ErrMsg = ""
 			m.pollCount = 0
@@ -129,7 +128,6 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.expiresIn = msg.ExpiresIn
 		m.interval = msg.Interval
 		m.pollCount = 0
-		// Start polling after instruction is displayed
 		return m, pollTokenCmd(m.deviceCode, m.pollCount, m.expiresIn)
 	case TickMsg:
 		if m.state == WaitingForAuthorization {

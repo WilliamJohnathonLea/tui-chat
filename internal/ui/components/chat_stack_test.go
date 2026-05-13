@@ -85,7 +85,7 @@ func Test_AddMessage(t *testing.T) {
 
 func Test_ScrollUp(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}}
-	updateMsg := tea.KeyMsg {Type: tea.KeyDown}
+	updateMsg := tea.KeyMsg{Type: tea.KeyDown}
 
 	updated, _ := stack.Update(updateMsg)
 
@@ -101,7 +101,7 @@ func Test_ScrollUp(t *testing.T) {
 
 func Test_ScrollDownAtMostRecent(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}, msgOffset: 1}
-	updateMsg := tea.KeyMsg {Type: tea.KeyUp}
+	updateMsg := tea.KeyMsg{Type: tea.KeyUp}
 
 	updated, _ := stack.Update(updateMsg)
 
@@ -117,8 +117,8 @@ func Test_ScrollDownAtMostRecent(t *testing.T) {
 
 func Test_ScrollUpThenDown(t *testing.T) {
 	stack := ChatStack{height: 5, width: 5, messages: []string{"hello", "world", "foo", "bar", "baz", "notseen"}, msgOffset: 0}
-	updateMsgUp := tea.KeyMsg {Type: tea.KeyDown}
-	updateMsgDown := tea.KeyMsg {Type: tea.KeyUp}
+	updateMsgUp := tea.KeyMsg{Type: tea.KeyDown}
+	updateMsgDown := tea.KeyMsg{Type: tea.KeyUp}
 
 	updated, _ := stack.Update(updateMsgUp)
 

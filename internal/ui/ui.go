@@ -5,12 +5,13 @@ import (
 )
 
 var (
-	ErrorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Red).Bold(true)
-	HeaderStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Magenta)
-	FooterStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#E4E6EB")).Background(lipgloss.Color("#262626")).Italic(true).MarginTop(1).Padding(0, 1)
-	TitleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.White).Background(lipgloss.Magenta).Padding(1, 8).MarginBottom(1).Align(lipgloss.Center)
-	ChatBoxStyle   = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Magenta).Padding(0, 1).Margin(0, 1) // Accent border
-	ChatInputStyle = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Magenta).Padding(0, 1).Margin(0, 1) // Accent border
+	ErrorStyle             = lipgloss.NewStyle().Foreground(lipgloss.Red).Bold(true)
+	HeaderStyle            = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Magenta)
+	FooterStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("#E4E6EB")).Background(lipgloss.Color("#262626")).Italic(true).MarginTop(1).Padding(0, 1)
+	TitleStyle             = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.White).Background(lipgloss.Magenta).Padding(1, 8).MarginBottom(1).Align(lipgloss.Center)
+	ChatBoxStyle           = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Magenta).Padding(0, 1).Margin(0, 1)
+	ChatInputStyle         = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Magenta).Padding(0, 1).Margin(0, 1) // Accent border
+	ChatInputDisabledStyle = ChatInputStyle.BorderForeground(lipgloss.Color("#AAAAAA"))
 )
 
 func RenderError(msg string) string {

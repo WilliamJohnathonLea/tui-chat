@@ -51,7 +51,7 @@ func (cs ChatStack) View() string {
 
 	topFill := strings.Repeat("\n", max(0, cs.height-len(cs.messages)))
 
-	for _, msg := range cs.messages[offset:offset+limit] {
+	for _, msg := range cs.messages[offset : offset+limit] {
 		b.WriteString(msg)
 		b.WriteString("\n")
 	}
