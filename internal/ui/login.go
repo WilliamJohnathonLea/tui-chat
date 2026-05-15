@@ -45,6 +45,12 @@ type (
 	TickMsg struct{}
 )
 
+var scopes []string = []string{
+	"user:read:email",
+	"user:write:chat",
+	"channel:read:subscriptions",
+}
+
 // LoginSuccessMsg is sent when Twitch login succeeds and carries the access token.
 type LoginSuccessMsg struct {
 	AccessToken string
@@ -163,7 +169,8 @@ func (m *LoginModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func requestDeviceCodeCmd(clientID string) tea.Cmd {
 	return func() tea.Msg {
 		endpoint := "https://id.twitch.tv/oauth2/device"
-		data := "client_id=" + clientID + "&scopes=user:read:email+user:write:chat"
+		scopesStr := strings.Join(scopes, "+")
+		data := "client_id=" + clientID + "&scopes=" + scopesStr
 		resp, err := http.Post(endpoint, "application/x-www-form-urlencoded", strings.NewReader(data))
 		if err != nil {
 			return ReceiveDeviceCodeMsg{Err: err}
@@ -201,14 +208,11 @@ func pollTokenCmd(deviceCode string, attempt int, expiresIn int) tea.Cmd {
 	return func() tea.Msg {
 		const maxAttempts = 20
 		clientID := "8pbsu0inj1huddl1inp1800p4vtmwy" // replace with your Twitch client ID
-		clientSecret := ""                           // Only if your app needs it
 		endpoint := "https://id.twitch.tv/oauth2/token"
-		scopes := "user:write:chat"
+		scopesStr := strings.Join(scopes, "+")
 		grantType := "urn:ietf:params:oauth:grant-type:device_code"
-		data := "client_id=" + clientID + "&device_code=" + deviceCode + "&scopes=" + scopes + "&grant_type=" + grantType
-		if clientSecret != "" {
-			data += "&client_secret=" + clientSecret
-		}
+		data := "client_id=" + clientID + "&device_code=" + deviceCode + "&scopes=" + scopesStr + "&grant_type=" + grantType
+
 		resp, err := http.Post(endpoint, "application/x-www-form-urlencoded", strings.NewReader(data))
 		if err != nil {
 			return ReceiveTokenMsg{Err: err}

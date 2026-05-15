@@ -25,7 +25,9 @@ type UserInfo struct {
 
 const clientID = "8pbsu0inj1huddl1inp1800p4vtmwy"
 
-const twitchAPIURL = "https://api.twitch.tv/helix/chat/messages"
+const twitchChatMessagesURL = "https://api.twitch.tv/helix/chat/messages"
+const twitchUsersURL = "https://api.twitch.tv/helix/users"
+const twitchEventSubSubscriptionsURL = "https://api.twitch.tv/helix/eventsub/subscriptions"
 
 // SendMessage sends a chat message to Twitch using the API.
 // client: HTTP client (mockable)
@@ -45,7 +47,7 @@ func SendMessage(client *http.Client, accessToken, senderId, message string) err
 	}
 
 	// Construct request
-	req, err := http.NewRequest("POST", twitchAPIURL, bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", twitchChatMessagesURL, bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -103,7 +105,7 @@ func SendMessage(client *http.Client, accessToken, senderId, message string) err
 
 // GetUsers retrieves info about one or more users from the Twitch API.
 func GetUsers(httpClient *http.Client, accessToken string, userIDs ...string) ([]UserInfo, error) {
-	base := "https://api.twitch.tv/helix/users"
+	base := twitchUsersURL
 	q := url.Values{}
 	for _, id := range userIDs {
 		q.Add("id", id)
