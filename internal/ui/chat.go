@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/services"
 	"github.com/WilliamJohnathonLea/tui-chat/internal/ui/components"
+	"github.com/gorilla/websocket"
 )
 
 type ChatModel struct {
@@ -22,16 +23,20 @@ type ChatModel struct {
 	Height              int
 	inputFocused        bool
 	httpClient          *http.Client
+	wsConn              *websocket.Conn
 	accessToken         string
 	loggedInUser        string // The authenticated user's ID
+	sessionID			string // The EventSub Session ID
 }
 
 type ChatMsgSent struct {
 	err error
 }
 
-type UserIdReceived struct {
+type ChatInit struct {
 	userID string
+	conn   *websocket.Conn
+	err    error
 }
 
 func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
@@ -49,7 +54,7 @@ func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 		input:               in,
 		participants:        participants,
 		participantsVisible: true,
-		inputFocused:        true,
+		inputFocused:        false,
 		httpClient:          httpClient,
 		accessToken:         accessToken,
 	}
@@ -58,21 +63,36 @@ func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 func (m *ChatModel) Init() tea.Cmd {
 	// On first initialize, look up the authenticated user's info
 	return func() tea.Msg {
+		conn, _, err := websocket.DefaultDialer.Dial("wss://eventsub.wss.twitch.tv/ws", nil)
+		if err != nil {
+			return ChatInit{err: err}
+		}
+
 		users, err := services.GetUsers(m.httpClient, m.accessToken)
 		if err != nil || len(users) == 0 {
-			return UserIdReceived{userID: ""}
+			return ChatInit{err: err}
 		}
-		return UserIdReceived{userID: users[0].ID}
+		return ChatInit{
+			userID: users[0].ID,
+			conn:   conn,
+			err:    nil,
+		}
 	}
 }
 
 func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle UserIdReceived for sender ID
-	if uid, ok := msg.(UserIdReceived); ok {
-		m.loggedInUser = uid.userID
-	}
-
 	switch msg := msg.(type) {
+	case ChatInit:
+		if msg.err != nil {
+			log.Println(msg.err)
+			return m, nil
+		}
+		m.loggedInUser = msg.userID
+		m.wsConn = msg.conn
+		return m, func() tea.Msg {
+			// TODO handle welcome message from websocket
+			return nil
+		}
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
@@ -80,18 +100,12 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			FooterStyle.GetVerticalFrameSize() +
 			ChatBoxStyle.GetVerticalFrameSize() + 2
 
-		if m.participantsVisible {
-			m.chat.SetWidth(m.Width - m.participants.Width())
-		} else {
-			offset := ChatBoxStyle.GetHorizontalMargins()
-			m.chat.SetWidth(m.Width - offset)
-		}
+		m.toggleChatWidth()
 
 		m.chat.SetHeight(m.Height - chatInputHeight)
 		m.participants.SetHeight(m.Height - chatInputHeight)
 
 		return m, nil
-
 	case tea.KeyMsg:
 		if msg.String() == "esc" {
 			m.logout = true
@@ -109,13 +123,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only toggle participants if input is unfocused
 		if !m.inputFocused && (msg.String() == "c" || msg.String() == "C") {
 			m.participantsVisible = !m.participantsVisible
-
-			if m.participantsVisible {
-				m.chat.SetWidth(m.Width - m.participants.Width())
-			} else {
-				offset := ChatBoxStyle.GetHorizontalMargins()
-				m.chat.SetWidth(m.Width - offset)
-			}
+			m.toggleChatWidth()
 
 			return m, nil
 		}
@@ -162,7 +170,6 @@ func (m *ChatModel) View() tea.View {
 	} else {
 		footer = FooterStyle.Render("tab: toggle input   c: toggle chatters   esc: logout")
 	}
-	
 
 	inputAndFooter := lipgloss.PlaceVertical(m.Height, lipgloss.Bottom, roomView+inputField+footer)
 
@@ -170,6 +177,15 @@ func (m *ChatModel) View() tea.View {
 	view.AltScreen = true
 
 	return view
+}
+
+func (m *ChatModel) toggleChatWidth() {
+	if m.participantsVisible {
+		m.chat.SetWidth(m.Width - m.participants.Width())
+	} else {
+		offset := ChatBoxStyle.GetHorizontalMargins()
+		m.chat.SetWidth(m.Width - offset)
+	}
 }
 
 // LoggedOut reports whether the user has requested to log out (esc).

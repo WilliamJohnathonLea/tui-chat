@@ -7,6 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.0
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/gorilla/websocket v1.5.3
 	github.com/stretchr/testify v1.11.1
 )
 
