@@ -9,31 +9,12 @@ import (
 	"net/url"
 )
 
-// UserInfo represents a user from the Twitch API.
-type UserInfo struct {
-	ID              string `json:"id"`
-	Login           string `json:"login"`
-	DisplayName     string `json:"display_name"`
-	Type            string `json:"type"`
-	BroadcasterType string `json:"broadcaster_type"`
-	Description     string `json:"description"`
-	ProfileImageURL string `json:"profile_image_url"`
-	OfflineImageURL string `json:"offline_image_url"`
-	Email           string `json:"email,omitempty"`
-	CreatedAt       string `json:"created_at"`
-}
-
 const clientID = "8pbsu0inj1huddl1inp1800p4vtmwy"
-
 const twitchChatMessagesURL = "https://api.twitch.tv/helix/chat/messages"
 const twitchUsersURL = "https://api.twitch.tv/helix/users"
 const twitchEventSubSubscriptionsURL = "https://api.twitch.tv/helix/eventsub/subscriptions"
 
 // SendMessage sends a chat message to Twitch using the API.
-// client: HTTP client (mockable)
-// accessToken: OAuth token for authenticating Twitch user
-// senderId: The user ID sending the message
-// message: The text to send
 func SendMessage(client *http.Client, accessToken, senderId, message string) error {
 	// Prepare HTTP request
 	payload := map[string]any{
@@ -145,4 +126,48 @@ func GetUsers(httpClient *http.Client, accessToken string, userIDs ...string) ([
 		return nil, fmt.Errorf("twitch API: unauthorized; check accessToken")
 	}
 	return nil, fmt.Errorf("twitch API: unexpected status %d: %s", resp.StatusCode, string(body))
+}
+
+// CreateEventSub creates a new EventSub subscription via Twitch API.
+func CreateEventSub(client *http.Client, accessToken, sessionID string, subscriptionMsg map[string]any) error {
+	body, err := json.Marshal(subscriptionMsg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", twitchEventSubSubscriptionsURL, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Client-Id", clientID)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch resp.StatusCode {
+	case http.StatusAccepted: // 202
+		return nil // success
+	case http.StatusBadRequest: // 400
+		return fmt.Errorf("twitch API: bad request (400): %s", string(body))
+	case http.StatusUnauthorized: // 401
+		return fmt.Errorf("twitch API: unauthorized (401): %s", string(body))
+	case http.StatusForbidden: // 403
+		return fmt.Errorf("twitch API: forbidden (403): %s", string(body))
+	case http.StatusConflict: // 409
+		return fmt.Errorf("twitch API: conflict (409): %s", string(body))
+	case http.StatusTooManyRequests: // 429
+		return fmt.Errorf("twitch API: too many requests (429): %s", string(body))
+	}
+	return fmt.Errorf("twitch API: unexpected status %d: %s", resp.StatusCode, string(body))
 }

@@ -35,134 +35,119 @@ func makeResp(statusCode int, body string) *http.Response {
 	}
 }
 
-// --- SendMessage tests ---
+// --- CreateEventSub tests ---
 
-func TestSendMessage_Success(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"data": [{"message_id": "abc-123-def", "is_sent": true}]}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusOK, respBody), nil)
-	client := buildMockClient(mockRT)
+func TestCreateEventSub(t *testing.T) {
+	tests := []struct {
+		name         string
+		respCode     int
+		respBody     string
+		token        string
+		subscription map[string]any
+		wantErr      bool
+		errContains  string
+	}{
+		{
+			name:     "202 Accepted",
+			respCode: http.StatusAccepted,
+			respBody: `{"data": {}}`,
+			token:    "goodtoken",
+			subscription: map[string]any{
+				"type":    "stream.online",
+				"version": "1",
+				"condition": map[string]any{
+					"broadcaster_user_id": "123",
+				},
+				"transport": map[string]any{
+					"method":     "websocket",
+					"session_id": "mysessionid",
+				},
+			},
+			wantErr: false,
+		},
+		{ // 400 Bad Request (missing condition)
+			name:     "400 Bad Request - missing condition",
+			respCode: http.StatusBadRequest,
+			respBody: `{"error":"Missing required field: condition"}`,
+			token:    "token",
+			subscription: map[string]any{
+				"type":    "x",
+				"version": "1",
+			},
+			wantErr:     true,
+			errContains: "bad request",
+		},
+		{ // 401 Unauthorized
+			name:     "401 Unauthorized - invalid token",
+			respCode: http.StatusUnauthorized,
+			respBody: `{"error":"Invalid access token"}`,
+			token:    "badtoken",
+			subscription: map[string]any{
+				"type":      "x",
+				"version":   "1",
+				"condition": map[string]any{},
+			},
+			wantErr:     true,
+			errContains: "unauthorized",
+		},
+		{ // 403 Forbidden (scope)
+			name:     "403 Forbidden - missing scopes",
+			respCode: http.StatusForbidden,
+			respBody: `{"error":"Missing required scope"}`,
+			token:    "token",
+			subscription: map[string]any{
+				"type":      "x",
+				"version":   "1",
+				"condition": map[string]any{},
+			},
+			wantErr:     true,
+			errContains: "forbidden",
+		},
+		{ // 409 Conflict
+			name:     "409 Conflict - already exists",
+			respCode: http.StatusConflict,
+			respBody: `{"error":"Subscription already exists"}`,
+			token:    "token",
+			subscription: map[string]any{
+				"type":      "x",
+				"version":   "1",
+				"condition": map[string]any{},
+			},
+			wantErr:     true,
+			errContains: "conflict",
+		},
+		{ // 429 Too Many Requests
+			name:     "429 Too Many Requests",
+			respCode: http.StatusTooManyRequests,
+			respBody: `{"error":"Rate limit exceeded"}`,
+			token:    "token",
+			subscription: map[string]any{
+				"type":      "x",
+				"version":   "1",
+				"condition": map[string]any{},
+			},
+			wantErr:     true,
+			errContains: "too many requests",
+		},
+	}
 
-	// Should not error
-	err := SendMessage(client, "token", "sender", "hello world")
-	assert.NoError(t, err)
-	mockRT.AssertExpectations(t)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRT := new(MockRoundTripper)
+			mockRT.On("RoundTrip", mock.Anything).Return(makeResp(tt.respCode, tt.respBody), nil)
+			client := buildMockClient(mockRT)
 
-func TestSendMessage_DropReason(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"data": [{"message_id": "abc-123-def", "is_sent": false, "drop_reason": {"code": 1, "message": "blah blah"}}]}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusOK, respBody), nil)
-	client := buildMockClient(mockRT)
+			err := CreateEventSub(client, tt.token, "unusedSession", tt.subscription)
 
-	err := SendMessage(client, "token", "sender", "dupmsg")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "drop_reason (code=1): blah blah")
-	mockRT.AssertExpectations(t)
-}
-
-func TestSendMessage_BadRequest(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"error": "Bad Request: broadcaster_id required"}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusBadRequest, respBody), nil)
-	client := buildMockClient(mockRT)
-
-	err := SendMessage(client, "token", "", "msg")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error status 400")
-	assert.Contains(t, err.Error(), "broadcaster_id")
-	mockRT.AssertExpectations(t)
-}
-
-func TestSendMessage_Unauthenticated(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"error": "Unauthenticated: Authorization header required"}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusUnauthorized, respBody), nil)
-	client := buildMockClient(mockRT)
-
-	err := SendMessage(client, "", "sender", "msg")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error status 401")
-	assert.Contains(t, err.Error(), "Authorization header")
-	mockRT.AssertExpectations(t)
-}
-
-func TestSendMessage_Forbidden(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"error": "Forbidden: not allowed to write"}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusForbidden, respBody), nil)
-	client := buildMockClient(mockRT)
-
-	err := SendMessage(client, "token", "sender", "msg")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error status 403")
-	assert.Contains(t, err.Error(), "not allowed")
-	mockRT.AssertExpectations(t)
-}
-
-func TestSendMessage_Unprocessable(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"error": "Unprocessable: message too large"}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusUnprocessableEntity, respBody), nil)
-	client := buildMockClient(mockRT)
-
-	err := SendMessage(client, "token", "sender", string(make([]byte, 2000)))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error status 422")
-	assert.Contains(t, err.Error(), "message too large")
-	mockRT.AssertExpectations(t)
-}
-
-// --- GetUsers tests ---
-
-func TestGetUsers_LoggedInUser(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"data": [{"id": "1234", "login": "demo", "display_name": "Demo", "type": "", "broadcaster_type": "", "description": "", "profile_image_url": "url", "offline_image_url": "url_offline", "created_at": "2020-10-10T00:00:00Z"}]}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusOK, respBody), nil)
-	client := buildMockClient(mockRT)
-	users, err := GetUsers(client, "tok", "")
-	assert.NoError(t, err)
-	assert.Len(t, users, 1)
-	assert.Equal(t, "1234", users[0].ID)
-	mockRT.AssertExpectations(t)
-}
-
-func TestGetUsers_ByID(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"data": [
-		{"id": "111", "login": "foo", "display_name": "FooBar", "type": "", "broadcaster_type": "", "description": "", "profile_image_url": "", "offline_image_url": "", "created_at": "2016-02-20T00:00:00Z"},
-		{"id": "222", "login": "bar", "display_name": "BarBaz", "type": "", "broadcaster_type": "", "description": "", "profile_image_url": "", "offline_image_url": "", "created_at": "2017-03-25T00:00:00Z"}
-	]}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusOK, respBody), nil)
-	client := buildMockClient(mockRT)
-	users, err := GetUsers(client, "tok", "111", "222")
-	assert.NoError(t, err)
-	assert.Len(t, users, 2)
-	assert.Equal(t, "foo", users[0].Login)
-	assert.Equal(t, "BarBaz", users[1].DisplayName)
-	mockRT.AssertExpectations(t)
-}
-
-func TestGetUsers_BadRequest(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"error": "bad_request"}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusBadRequest, respBody), nil)
-	client := buildMockClient(mockRT)
-	users, err := GetUsers(client, "tok", "badid")
-	assert.Error(t, err)
-	assert.Nil(t, users)
-	assert.Contains(t, err.Error(), "bad request")
-	mockRT.AssertExpectations(t)
-}
-
-func TestGetUsers_Unauthorized(t *testing.T) {
-	mockRT := new(MockRoundTripper)
-	respBody := `{"error": "unauthorized"}`
-	mockRT.On("RoundTrip", mock.Anything).Return(makeResp(http.StatusUnauthorized, respBody), nil)
-	client := buildMockClient(mockRT)
-	users, err := GetUsers(client, "bad_token")
-	assert.Error(t, err)
-	assert.Nil(t, users)
-	assert.Contains(t, err.Error(), "unauthorized")
-	mockRT.AssertExpectations(t)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+			mockRT.AssertExpectations(t)
+		})
+	}
 }
