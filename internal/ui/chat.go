@@ -43,6 +43,11 @@ type SessionIDReceived struct {
 	sessionID string
 }
 
+type EventReceived struct {
+	event []byte
+	err   error
+}
+
 func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 	in := textinput.New()
 	in.Focus()
@@ -110,9 +115,26 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			err := services.CreateEventSub(m.httpClient, m.accessToken, m.sessionID, chatSubReq)
 			if err != nil {
 				log.Printf("failed to create event subscription %s", err.Error())
+				return nil
 			}
+			return m.readWebsocket()
+		}
+	case EventReceived:
+		if msg.err != nil {
+			logErr := func() tea.Msg {
+				log.Printf("error receiving event %s", msg.err.Error())
+				return nil
+			}
+			return m, tea.Batch(logErr, m.readWebsocket)
+		}
+
+		eventStr := string(msg.event)
+		logEvent := func() tea.Msg {
+			log.Println(eventStr)
 			return nil
 		}
+
+		return m, tea.Batch(logEvent, m.readWebsocket)
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
@@ -206,6 +228,14 @@ func (m *ChatModel) toggleChatWidth() {
 		offset := ChatBoxStyle.GetHorizontalMargins()
 		m.chat.SetWidth(m.Width - offset)
 	}
+}
+
+func (m *ChatModel) readWebsocket() tea.Msg {
+	event, err := services.HandleEvent(m.wsConn)
+	if err != nil {
+		return EventReceived{err: err}
+	}
+	return EventReceived{event: event}
 }
 
 // LoggedOut reports whether the user has requested to log out (esc).

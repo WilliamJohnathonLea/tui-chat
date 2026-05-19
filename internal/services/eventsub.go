@@ -8,10 +8,8 @@ import (
 
 func HandleWelcomeEvent(conn *websocket.Conn) (string, error) {
 	var welcome struct {
-		Metadata struct {
-			MessageType string `json:"message_type"`
-		} `json:"metadata"`
-		Payload struct {
+		Metadata Metadata `json:"metadata"`
+		Payload  struct {
 			Session struct {
 				ID string `json:"id"`
 			} `json:"session"`
@@ -24,8 +22,17 @@ func HandleWelcomeEvent(conn *websocket.Conn) (string, error) {
 	}
 
 	if welcome.Metadata.MessageType != "session_welcome" {
-		return "", fmt.Errorf("expected 'session_welcoe' got '%s'", welcome.Metadata.MessageType)
+		return "", fmt.Errorf("expected 'session_welcome' got '%s'", welcome.Metadata.MessageType)
 	}
 
 	return welcome.Payload.Session.ID, nil
+}
+
+func HandleEvent(conn *websocket.Conn) ([]byte, error) {
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return msg, nil
 }
