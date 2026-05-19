@@ -47,6 +47,7 @@ type (
 
 var scopes []string = []string{
 	"user:read:email",
+	"user:read:chat",
 	"user:write:chat",
 	"channel:read:subscriptions",
 }

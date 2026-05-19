@@ -26,7 +26,7 @@ type ChatModel struct {
 	wsConn              *websocket.Conn
 	accessToken         string
 	loggedInUser        string // The authenticated user's ID
-	sessionID			string // The EventSub Session ID
+	sessionID           string // The EventSub Session ID
 }
 
 type ChatMsgSent struct {
@@ -37,6 +37,10 @@ type ChatInit struct {
 	userID string
 	conn   *websocket.Conn
 	err    error
+}
+
+type SessionIDReceived struct {
+	sessionID string
 }
 
 func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
@@ -61,7 +65,6 @@ func NewChatModel(httpClient *http.Client, accessToken string) *ChatModel {
 }
 
 func (m *ChatModel) Init() tea.Cmd {
-	// On first initialize, look up the authenticated user's info
 	return func() tea.Msg {
 		conn, _, err := websocket.DefaultDialer.Dial("wss://eventsub.wss.twitch.tv/ws", nil)
 		if err != nil {
@@ -84,13 +87,30 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ChatInit:
 		if msg.err != nil {
-			log.Println(msg.err)
-			return m, nil
+			return m, func() tea.Msg {
+				log.Println(msg.err)
+				return nil
+			}
 		}
 		m.loggedInUser = msg.userID
 		m.wsConn = msg.conn
 		return m, func() tea.Msg {
-			// TODO handle welcome message from websocket
+			sessionID, err := services.HandleWelcomeEvent(m.wsConn)
+			if err != nil {
+				log.Println("could not get session ID for Twitch")
+				return nil
+			}
+			return SessionIDReceived{sessionID: sessionID}
+		}
+	case SessionIDReceived:
+		m.sessionID = msg.sessionID
+		chatSubReq := services.ChannelChatMessageSub(m.loggedInUser, m.sessionID)
+
+		return m, func() tea.Msg {
+			err := services.CreateEventSub(m.httpClient, m.accessToken, m.sessionID, chatSubReq)
+			if err != nil {
+				log.Printf("failed to create event subscription %s", err.Error())
+			}
 			return nil
 		}
 	case tea.WindowSizeMsg:
